@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Scanner Rápido</title>
+<style>
+:root{--bg:#f5f6f8;--card:#fff;--tx:#1b1f24;--mut:#6a7380;--bd:#dde1e6;--ac:#2f6fed;--crit:#f8c9c9;--alta:#fde0c2;--med:#fff3b8;--ok:#d4f0dc;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#14171b;--card:#1d2127;--tx:#e8eaed;--mut:#9aa3ae;--bd:#30363d;--ac:#6b9bff;--crit:#5a2326;--alta:#5a3a1c;--med:#554a14;--ok:#1d4429}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:900px;margin:0 auto;padding:24px 16px}
+h1{margin:0 0 4px;font-size:1.6rem}
+p.sub{margin:0 0 20px;color:var(--mut)}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:16px;margin-bottom:16px}
+#drop{border:2px dashed var(--bd);border-radius:12px;padding:32px 16px;text-align:center;cursor:pointer}
+#drop.over{border-color:var(--ac);background:color-mix(in srgb,var(--ac) 10%,transparent)}
+button,.btn{background:var(--ac);color:#fff;border:0;border-radius:8px;padding:9px 16px;font:inherit;cursor:pointer}
+button.sec{background:transparent;color:var(--ac);border:1px solid var(--ac)}
+.row{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:12px}
+textarea{width:100%;min-height:70px;background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:8px;font:13px ui-monospace,monospace}
+progress{width:100%;height:10px}
+.wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:.92rem}
+th,td{text-align:left;padding:8px;border-bottom:1px solid var(--bd);vertical-align:top}
+.tag{display:inline-block;padding:2px 8px;border-radius:99px;font-size:.78rem;font-weight:600;color:#1b1f24}
+.CRÍTICA{background:var(--crit);color:var(--tx)}.ALTA{background:var(--alta);color:var(--tx)}.MÉDIA{background:var(--med);color:var(--tx)}
+#res{padding:12px;border-radius:8px;margin-top:12px;display:none}
+small{color:var(--mut)}
+</style>
+</head>
+<body>
+<main>
+<h1>Scanner Rápido</h1>
+<p class="sub">Verifica arquivos suspeitos direto no navegador. Nada é enviado para a internet: a análise acontece no seu computador.</p>
+
+<div class="card">
+  <div id="drop">
+    <strong>Arraste arquivos ou uma pasta aqui</strong><br>
+    <small>ou use os botões abaixo</small>
+    <div class="row">
+      <button id="bArq">Escolher arquivos</button>
+      <button id="bPasta" class="sec">Escolher pasta</button>
+    </div>
+  </div>
+  <input id="fArq" type="file" multiple hidden>
+  <input id="fPasta" type="file" webkitdirectory hidden>
+</div>
+
+<div class="card">
+  <strong>Lista de hashes de ameaças (opcional)</strong><br>
+  <small>Cole hashes SHA-256 (um por linha) ou carregue um .txt, por exemplo uma lista do MalwareBazaar.</small>
+  <textarea id="hashes" placeholder="e3b0c44298fc1c149afbf4c8996fb924..."></textarea>
+  <div class="row" style="justify-content:flex-start"><button id="bTxt" class="sec">Carregar .txt</button></div>
+  <input id="fTxt" type="file" accept=".txt" hidden>
+</div>
+
+<div class="card" id="saida" hidden>
+  <progress id="prog" value="0" max="1"></progress>
+  <div id="st"><small></small></div>
+  <div id="res"></div>
+  <div class="wrap"><table id="tab" hidden><thead><tr><th>Gravidade</th><th>Arquivo</th><th>Motivo</th></tr></thead><tbody></tbody></table></div>
+</div>
+
+<p><small>Ferramenta de apoio: não substitui um antivírus. Um arquivo sem alertas aqui não é garantia de que esteja limpo.</small></p>
+</main>
+
+<script>
+const EXT_RISCO=new Set(["exe","scr","bat","cmd","vbs","vbe","js","jse","wsf","ps1","com","pif","hta","jar","msi","dll"]);
+const EXT_ISCA=new Set(["pdf","doc","docx","xls","xlsx","jpg","jpeg","png","txt","mp3","mp4","zip","rar"]);
+const TAM_MAX=100*1024*1024;
+const $=id=>document.getElementById(id);
+
+async function sha256(file){
+  const buf=await file.arrayBuffer();
+  const h=await crypto.subtle.digest("SHA-256",buf);
+  return [...new Uint8Array(h)].map(b=>b.toString(16).padStart(2,"0")).join("");
+}
+async function cabecalho(file){
+  const b=new Uint8Array(await file.slice(0,4).arrayBuffer());
+  if(b[0]===0x4D&&b[1]===0x5A)return "exe";            // MZ = executável Windows
+  if(b[0]===0x7F&&b[1]===0x45&&b[2]===0x4C&&b[3]===0x46)return "elf";
+  return null;
+}
+async function analisar(file,ruins){
+  const out=[],nome=file.name.toLowerCase(),p=nome.split(".");
+  const ext=p.length>1?p[p.length-1]:"";
+  if(p.length>=3&&EXT_RISCO.has(ext)&&EXT_ISCA.has(p[p.length-2]))
+    out.push(["ALTA","Extensão dupla enganosa (finge ser documento ou imagem)"]);
+  if(EXT_ISCA.has(ext)&&file.size>0&&await cabecalho(file))
+    out.push(["ALTA","Parece documento/imagem, mas o conteúdo é um executável"]);
+  if(EXT_RISCO.has(ext)&&file.size<=TAM_MAX&&ruins.size){
+    if(ruins.has(await sha256(file)))out.push(["CRÍTICA","Hash coincide com ameaça conhecida"]);
+  }
+  if(["scr","pif","hta","vbs","vbe","jse","wsf"].includes(ext))
+    out.push(["MÉDIA","Tipo de arquivo raramente usado em programas legítimos"]);
+  return out;
+}
+function lerHashes(){
+  return new Set($("hashes").value.split(/\s+/).map(s=>s.trim().toLowerCase()).filter(s=>/^[a-f0-9]{64}$/.test(s)));
+}
+async function varrer(lista){
+  lista=[...lista];
+  if(!lista.length)return;
+  const ruins=lerHashes(),tb=$("tab").querySelector("tbody");
+  tb.innerHTML="";$("tab").hidden=true;$("res").style.display="none";
+  $("saida").hidden=false;$("prog").max=lista.length;$("prog").value=0;
+  let feitos=0,alertas=0;
+  const fila=lista.slice();
+  async function worker(){
+    while(fila.length){
+      const f=fila.shift();
+      $("st").firstChild.textContent=f.webkitRelativePath||f.name;
+      let achados=[];
+      try{achados=await analisar(f,ruins)}catch(e){}
+      for(const [g,m] of achados){
+        alertas++;
+        const tr=document.createElement("tr");
+        const c1=document.createElement("td"),c2=document.createElement("td"),c3=document.createElement("td");
+        const t=document.createElement("span");t.className="tag "+g;t.textContent=g;c1.appendChild(t);
+        c2.textContent=f.webkitRelativePath||f.name;c3.textContent=m;
+        tr.append(c1,c2,c3);tb.appendChild(tr);$("tab").hidden=false;
+      }
+      $("prog").value=++feitos;
+    }
+  }
+  await Promise.all([worker(),worker(),worker(),worker()]);
+  $("st").firstChild.textContent="Concluído.";
+  const r=$("res");r.style.display="block";
+  r.style.background=alertas?"var(--med)":"var(--ok)";
+  r.textContent=alertas?`${feitos} arquivos analisados, ${alertas} alerta(s). Revise os itens abaixo.`:`${feitos} arquivos analisados, nenhum alerta.`;
+}
+$("bArq").onclick=e=>{e.stopPropagation();$("fArq").click()};
+$("bPasta").onclick=e=>{e.stopPropagation();$("fPasta").click()};
+$("fArq").onchange=e=>varrer(e.target.files);
+$("fPasta").onchange=e=>varrer(e.target.files);
+$("bTxt").onclick=()=>$("fTxt").click();
+$("fTxt").onchange=async e=>{if(e.target.files[0])$("hashes").value=await e.target.files[0].text()};
+const d=$("drop");
+["dragenter","dragover"].forEach(ev=>d.addEventListener(ev,e=>{e.preventDefault();d.classList.add("over")}));
+["dragleave","drop"].forEach(ev=>d.addEventListener(ev,e=>{e.preventDefault();d.classList.remove("over")}));
+d.addEventListener("drop",async e=>{
+  const itens=[...e.dataTransfer.items].map(i=>i.webkitGetAsEntry&&i.webkitGetAsEntry()).filter(Boolean);
+  const arquivos=[];
+  async function ler(en){
+    if(en.isFile){await new Promise(r=>en.file(f=>{arquivos.push(f);r()},r))}
+    else if(en.isDirectory){
+      const rd=en.createReader();let lote;
+      do{lote=await new Promise(r=>rd.readEntries(r,()=>r([])));for(const x of lote)await ler(x)}while(lote.length);
+    }
+  }
+  for(const en of itens)await ler(en);
+  varrer(arquivos.length?arquivos:e.dataTransfer.files);
+});
+</script>
+</body>
+</html>
