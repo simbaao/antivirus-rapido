@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Scanner Rápido</title>
 <style>
-:root{--bg:#f5f6f8;--card:#fff;--tx:#1b1f24;--mut:#6a7380;--bd:#dde1e6;--ac:#2f6fed;--crit:#f8c9c9;--alta:#fde0c2;--med:#fff3b8;--ok:#d4f0dc;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#14171b;--card:#1d2127;--tx:#e8eaed;--mut:#9aa3ae;--bd:#30363d;--ac:#6b9bff;--crit:#5a2326;--alta:#5a3a1c;--med:#554a14;--ok:#1d4429}}
+:root{--bg:#f5f6f8;--card:#fff;--tx:#1b1f24;--mut:#6a7380;--bd:#dde1e6;--ac:#2f6fed;--crit:#f8c9c9;--alta:#fde0c2;--med:#fff3b8;--ok:#d4f0dc;--blu:#d6e6ff;--redtx:#b3261e;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#14171b;--card:#1d2127;--tx:#e8eaed;--mut:#9aa3ae;--bd:#30363d;--ac:#6b9bff;--crit:#5a2326;--alta:#5a3a1c;--med:#554a14;--ok:#1d4429;--blu:#1b3556;--redtx:#ff9a92}}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
 main{max-width:900px;margin:0 auto;padding:24px 16px}
@@ -27,6 +27,20 @@ th,td{text-align:left;padding:8px;border-bottom:1px solid var(--bd);vertical-ali
 .CRÍTICA{background:var(--crit);color:var(--tx)}.ALTA{background:var(--alta);color:var(--tx)}.MÉDIA{background:var(--med);color:var(--tx)}
 #res{padding:12px;border-radius:8px;margin-top:12px;display:none}
 small{color:var(--mut)}
+.tag.t-crit{background:#d93025;color:#fff}.tag.t-med{background:#e0a800;color:#1b1f24}.tag.t-ok{background:#2f6fed;color:#fff}
+tr.r-crit td{background:var(--crit)}tr.r-crit td:first-child{box-shadow:inset 4px 0 #d93025}
+tr.r-med td{background:var(--med)}tr.r-med td:first-child{box-shadow:inset 4px 0 #e0a800}
+tr.r-ok td{background:var(--blu)}tr.r-ok td:first-child{box-shadow:inset 4px 0 #2f6fed}
+tr.filho td:nth-child(2){padding-left:28px}
+.dn{font-weight:700}tr.r-crit .dn{color:var(--redtx)}
+#tab.so tr.r-ok{display:none}
+#filt{display:block;margin:12px 0 8px}
+td{word-break:break-word}
+#readme h2{margin:0 0 8px;font-size:1.25rem}
+#readme h3{margin:18px 0 6px;font-size:1rem}
+#readme ul,#readme ol{margin:0;padding-left:22px}
+#readme li{margin:4px 0}
+#readme code{background:var(--bg);border:1px solid var(--bd);border-radius:4px;padding:1px 5px;font-size:.88em}
 </style>
 </head>
 <body>
@@ -59,77 +73,188 @@ small{color:var(--mut)}
   <progress id="prog" value="0" max="1"></progress>
   <div id="st"><small></small></div>
   <div id="res"></div>
-  <div class="wrap"><table id="tab" hidden><thead><tr><th>Gravidade</th><th>Arquivo</th><th>Motivo</th></tr></thead><tbody></tbody></table></div>
+  <label id="filt" hidden><input type="checkbox" id="so"> Mostrar só ameaças e alertas</label>
+  <div class="wrap"><table id="tab" hidden><thead><tr><th>Status</th><th>Arquivo</th><th>Detecção</th></tr></thead><tbody></tbody></table></div>
 </div>
+
+<section class="card" id="readme">
+  <h2>Como funciona</h2>
+  <p>O Scanner Rápido examina arquivos que você escolher e lista <strong>tudo</strong> o que encontrou, inclusive o conteúdo de arquivos ZIP. Ele roda inteiro no seu navegador: nada é enviado para a internet.</p>
+
+  <h3>Passo a passo</h3>
+  <ol>
+    <li>Arraste arquivos ou uma pasta para a área pontilhada, ou use os botões.</li>
+    <li>Se quiser, cole uma lista de ameaças conhecidas. Cada linha pode ter o hash SHA-256 e, depois dele, o nome da ameaça.</li>
+    <li>Ao terminar, a tabela mostra todos os arquivos. Use a caixa <em>Mostrar só ameaças e alertas</em> para esconder os limpos.</li>
+  </ol>
+
+  <h3>As cores</h3>
+  <ul>
+    <li><span class="tag t-crit">AMEAÇA</span> vermelho: o arquivo bate com uma ameaça conhecida ou tem sinais fortes de malware. A linha mostra o nome da detecção.</li>
+    <li><span class="tag t-med">ATENÇÃO</span> amarelo: algo incomum, que pode ser legítimo. Confira a origem.</li>
+    <li><span class="tag t-ok">SEM ALERTA</span> azul: nenhum sinal encontrado.</li>
+  </ul>
+
+  <h3>O que ele procura</h3>
+  <ul>
+    <li><strong>Disfarces:</strong> extensão dupla (<code>foto.jpg.exe</code>), nome invertido por caractere invisível e arquivos com nome de documento que são programas por dentro.</li>
+    <li><strong>Programas (.exe, .dll):</strong> compactadores usados por malware, conteúdo muito embaralhado e funções típicas de injeção e espionagem.</li>
+    <li><strong>Scripts (.bat, .ps1, .vbs, .js, .hta...):</strong> comandos codificados, downloads escondidos, apagamento de backups, desativação de antivírus e persistência.</li>
+    <li><strong>Documentos:</strong> PDFs que executam programas ou têm JavaScript e arquivos do Office com macros, inclusive macros escondidas em .docx e .xlsx.</li>
+    <li><strong>ZIP:</strong> lista cada item de dentro e marca programas e disfarces.</li>
+    <li><strong>Lista de hashes:</strong> compara com as ameaças que você colar. O arquivo de teste EICAR é reconhecido sempre.</li>
+  </ul>
+
+  <h3>Limites</h3>
+  <ul>
+    <li>É uma análise por sinais suspeitos, sem a base de assinaturas de um antivírus. Ela <strong>não consegue garantir</strong> que encontrou todos os vírus.</li>
+    <li>Alertas podem ser falsos, e a ausência deles não prova que o arquivo é seguro. Para confirmar um suspeito, use o Microsoft Defender ou o VirusTotal.</li>
+    <li>Só são analisados os arquivos que você escolher. Para o hash, arquivos acima de 100 MB são ignorados.</li>
+  </ul>
+</section>
 
 <p><small>Ferramenta de apoio: não substitui um antivírus. Um arquivo sem alertas aqui não é garantia de que esteja limpo.</small></p>
 </main>
 
 <script>
-const EXT_RISCO=new Set(["exe","scr","bat","cmd","vbs","vbe","js","jse","wsf","ps1","com","pif","hta","jar","msi","dll"]);
-const EXT_ISCA=new Set(["pdf","doc","docx","xls","xlsx","jpg","jpeg","png","txt","mp3","mp4","zip","rar"]);
-const TAM_MAX=100*1024*1024;
 const $=id=>document.getElementById(id);
+const EXEC=new Set(["exe","scr","bat","cmd","vbs","vbe","js","jse","wsf","ps1","com","pif","hta","jar","msi","dll","lnk","reg","cpl","msc","sys"]);
+const ZEXEC=new Set(["exe","scr","bat","cmd","vbs","vbe","jse","wsf","ps1","com","pif","hta","jar","msi","lnk","cpl"]);
+const ISCA=new Set(["pdf","doc","docx","xls","xlsx","ppt","pptx","jpg","jpeg","png","gif","bmp","txt","mp3","mp4","zip","rar","7z","rtf","csv"]);
+const RAROS=new Set(["scr","pif","hta","vbs","vbe","jse","wsf","cpl","msc","reg"]);
+const SCRIPTS=new Set(["js","jse","vbs","vbe","wsf","ps1","bat","cmd","hta","html","htm","lnk","reg"]);
+const MAXHASH=100*1024*1024;
+const rank={"CRÍTICA":3,"ALTA":2,"MÉDIA":1};
+const PADROES=[
+ [/-enc(odedcommand)?\s+[A-Za-z0-9+\/=]{20,}/i,3,"PowerShell com comando codificado"],
+ [/frombase64string/i,2,"decodifica Base64"],
+ [/invoke-expression|\biex\b\s*[\(\$]/i,2,"executa texto como código (IEX)"],
+ [/downloadstring|downloadfile|invoke-webrequest|urldownloadtofile|bitsadmin\s+\/transfer|certutil[^\n]{0,40}-urlcache/i,3,"baixa arquivos da internet"],
+ [/-w(indowstyle)?\s+hidden|-nop\b|-noprofile|executionpolicy\s+bypass|-ep\s+bypass/i,2,"PowerShell oculto ou sem restrições"],
+ [/wscript\.shell|shell\.application/i,1,"executa comandos do sistema"],
+ [/adodb\.stream|msxml2\.xmlhttp|microsoft\.xmlhttp/i,2,"baixa e grava dados via ActiveX"],
+ [/string\.fromcharcode|unescape\s*\(|eval\s*\(\s*(atob|unescape)/i,2,"código ofuscado"],
+ [/vssadmin[^\n]{0,20}delete\s+shadows|wbadmin\s+delete|recoveryenabled\s+no/i,5,"apaga cópias de segurança (típico de ransomware)"],
+ [/schtasks\s+\/create|currentversion\\run|reg\s+add[^\n]{0,80}\\run/i,2,"cria persistência (inicia com o Windows)"],
+ [/netsh\s+advfirewall[^\n]{0,40}off|set-mppreference[^\n]{0,40}disable|disableantispyware/i,4,"tenta desativar antivírus ou firewall"],
+ [/mshta\s+http|regsvr32[^\n]{0,30}\/i:http|rundll32[^\n]{0,60}javascript:/i,4,"execução remota via ferramenta do Windows"]
+];
+const APIS=["VirtualAllocEx","WriteProcessMemory","CreateRemoteThread","SetWindowsHookEx","GetAsyncKeyState","URLDownloadToFile","NtUnmapViewOfSection","AdjustTokenPrivileges","CryptEncrypt","InternetOpenUrl","WinExec"];
 
-async function sha256(file){
-  const buf=await file.arrayBuffer();
-  const h=await crypto.subtle.digest("SHA-256",buf);
-  return [...new Uint8Array(h)].map(b=>b.toString(16).padStart(2,"0")).join("");
+const sevMax=d=>d.reduce((m,x)=>Math.max(m,rank[x.sev]),0);
+const fmt=n=>n<1024?n+" B":n<1048576?(n/1024).toFixed(1)+" KB":(n/1048576).toFixed(1)+" MB";
+function entropia(u){const c=new Uint32Array(256);for(let i=0;i<u.length;i++)c[u[i]]++;let e=0;for(let i=0;i<256;i++)if(c[i]){const q=c[i]/u.length;e-=q*Math.log2(q)}return e}
+function secoesPE(u){
+  try{const dv=new DataView(u.buffer,u.byteOffset,u.byteLength),pe=dv.getUint32(0x3C,true);
+    if(dv.getUint32(pe,true)!==0x4550)return null;
+    const n=dv.getUint16(pe+6,true),opt=dv.getUint16(pe+20,true),out=[];let o=pe+24+opt;
+    for(let i=0;i<n&&o+40<=u.length;i++,o+=40)out.push(String.fromCharCode(...u.subarray(o,o+8)).replace(/\0/g,""));
+    return out}catch(e){return null}
 }
-async function cabecalho(file){
-  const b=new Uint8Array(await file.slice(0,4).arrayBuffer());
-  if(b[0]===0x4D&&b[1]===0x5A)return "exe";            // MZ = executável Windows
-  if(b[0]===0x7F&&b[1]===0x45&&b[2]===0x4C&&b[3]===0x46)return "elf";
-  return null;
-}
-async function analisar(file,ruins){
-  const out=[],nome=file.name.toLowerCase(),p=nome.split(".");
-  const ext=p.length>1?p[p.length-1]:"";
-  if(p.length>=3&&EXT_RISCO.has(ext)&&EXT_ISCA.has(p[p.length-2]))
-    out.push(["ALTA","Extensão dupla enganosa (finge ser documento ou imagem)"]);
-  if(EXT_ISCA.has(ext)&&file.size>0&&await cabecalho(file))
-    out.push(["ALTA","Parece documento/imagem, mas o conteúdo é um executável"]);
-  if(EXT_RISCO.has(ext)&&file.size<=TAM_MAX&&ruins.size){
-    if(ruins.has(await sha256(file)))out.push(["CRÍTICA","Hash coincide com ameaça conhecida"]);
+async function trecho(f,max){const b=await f.slice(0,max).arrayBuffer();return{u8:new Uint8Array(b),t:new TextDecoder("latin1").decode(b).replace(/\0/g,"")}}
+async function sha256(f){const h=await crypto.subtle.digest("SHA-256",await f.arrayBuffer());return[...new Uint8Array(h)].map(b=>b.toString(16).padStart(2,"0")).join("")}
+async function listarZip(f){
+  if(f.size<22)return null;
+  const tail=new DataView(await f.slice(Math.max(0,f.size-66000)).arrayBuffer());let a=-1;
+  for(let i=tail.byteLength-22;i>=0;i--)if(tail.getUint32(i,true)===0x06054b50){a=i;break}
+  if(a<0)return null;
+  const sz=tail.getUint32(a+12,true),off=tail.getUint32(a+16,true);
+  if(off+sz>f.size||sz>8388608)return null;
+  const buf=await f.slice(off,off+sz).arrayBuffer(),dv=new DataView(buf),u=new Uint8Array(buf),out=[];let o=0;
+  while(o+46<=buf.byteLength&&dv.getUint32(o,true)===0x02014b50&&out.length<300){
+    const fl=dv.getUint16(o+8,true),nl=dv.getUint16(o+28,true),el=dv.getUint16(o+30,true),cl=dv.getUint16(o+32,true);
+    const nome=new TextDecoder(fl&0x800?"utf-8":"latin1").decode(u.slice(o+46,o+46+nl));
+    if(!nome.endsWith("/"))out.push({nome,cript:!!(fl&1),tam:dv.getUint32(o+24,true)});
+    o+=46+nl+el+cl;
   }
-  if(["scr","pif","hta","vbs","vbe","jse","wsf"].includes(ext))
-    out.push(["MÉDIA","Tipo de arquivo raramente usado em programas legítimos"]);
   return out;
 }
-function lerHashes(){
-  return new Set($("hashes").value.split(/\s+/).map(s=>s.trim().toLowerCase()).filter(s=>/^[a-f0-9]{64}$/.test(s)));
+function detFilho(it){
+  const p=it.nome.toLowerCase().split("/").pop().split("."),e=p.length>1?p[p.length-1]:"";
+  if(p.length>=3&&ZEXEC.has(e)&&ISCA.has(p[p.length-2]))return[{sev:"ALTA",n:"Heur:Disfarce.ExtensaoDupla",d:"dentro do compactado"}];
+  if(ZEXEC.has(e))return[{sev:"MÉDIA",n:"Heur:Executavel.NoCompactado",d:"programa ou script dentro do ZIP"+(it.cript?" (com senha)":"")}];
+  return[];
+}
+async function analisar(f,ruins){
+  const det=[],nome=f.name,p=nome.toLowerCase().split("."),ext=p.length>1?p[p.length-1]:"",filhos=[];
+  const add=(sev,n,d)=>det.push({sev,n,d});
+  if(nome.includes("\u202E"))add("ALTA","Heur:Disfarce.RLO","o nome usa um caractere invisível que inverte a extensão");
+  if(p.length>=3&&EXEC.has(ext)&&ISCA.has(p[p.length-2]))add("ALTA","Heur:Disfarce.ExtensaoDupla","finge ser ."+p[p.length-2]+", mas é ."+ext);
+  else if(RAROS.has(ext))add("MÉDIA","Heur:TipoIncomum."+ext.toUpperCase(),"formato raramente usado por programas legítimos");
+  if(f.size>0){
+    const{u8,t}=await trecho(f,6*1048576);
+    if(f.size<=1048576&&t.includes("EICAR-STANDARD-ANTIVIRUS-TEST-FILE"))add("CRÍTICA","EICAR-Test-File","arquivo de teste padrão para checar antivírus");
+    const mz=u8[0]===0x4D&&u8[1]===0x5A,elf=u8[0]===0x7F&&u8[1]===0x45&&u8[2]===0x4C&&u8[3]===0x46;
+    if((mz||elf)&&ISCA.has(ext))add("ALTA","Heur:Disfarce.ExecutavelEscondido","nome de ."+ext+", mas o conteúdo é um programa executável");
+    if(mz){
+      const sec=secoesPE(u8.subarray(0,65536)),emp=sec&&sec.find(x=>/^(upx|\.?aspack|\.themida|\.vmp|\.mpress|\.petite)/i.test(x));
+      if(emp)add("MÉDIA","Heur:Empacotado."+emp.replace(/[^\w.]/g,""),"programa compactado ou protegido, técnica comum em malware");
+      if(entropia(u8.subarray(0,1048576))>7.4)add("MÉDIA","Heur:AltaEntropia","conteúdo muito embaralhado (possível criptografia ou empacotador)");
+      const ap=APIS.filter(a=>t.includes(a));
+      if(ap.length>=3)add(ap.length>=5?"ALTA":"MÉDIA","Heur:Trojan.APIsSuspeitas","funções típicas de injeção e espionagem: "+ap.slice(0,5).join(", "));
+    }
+    if(SCRIPTS.has(ext)){
+      let sc=0;const ds=[];
+      for(const[re,w,d]of PADROES)if(re.test(t)){sc+=w;ds.push(d)}
+      if(sc>=3)add(sc>=5?"ALTA":"MÉDIA",sc>=5?"Heur:Script.Malicioso":"Heur:Script.Suspeito",ds.join("; "));
+    }
+    if(ext==="pdf"){
+      if(/\/Launch/.test(t))add("ALTA","Heur:PDF.Launch","o PDF tenta executar programas");
+      else if(/\/(JavaScript|JS)\b/.test(t))add("MÉDIA","Heur:PDF.JavaScript","o PDF contém JavaScript");
+      if(/\/EmbeddedFile/.test(t))add("MÉDIA","Heur:PDF.ArquivoEmbutido","o PDF carrega outro arquivo dentro dele");
+    }
+    if(/^(docx|xlsx|pptx)$/.test(ext)&&t.includes("vbaProject.bin"))add("ALTA","Heur:Office.MacroEscondida","a extensão diz que não há macros, mas há código VBA dentro");
+    else if(/^(docm|xlsm|pptm|xlam|xlsb|dotm)$/.test(ext))add("MÉDIA","Heur:Office.MacrosHabilitadas","documento que pode executar macros");
+    if(ext==="zip"){
+      const l=await listarZip(f);let sus=0;
+      if(l)for(const it of l){const d=detFilho(it);if(d.length)sus++;filhos.push({nome:it.nome,tam:it.tam,det:d})}
+      if(sus)add("MÉDIA","Heur:Compactado.ContemSuspeitos",sus+" item(ns) suspeito(s) dentro do ZIP");
+    }
+    if(ruins.size&&f.size<=MAXHASH){const h=await sha256(f);if(ruins.has(h))add("CRÍTICA",ruins.get(h)||"Ameaça.Conhecida","o hash SHA-256 está na sua lista de ameaças")}
+  }
+  return{det,filhos};
+}
+function lerHashes(){const m=new Map();for(const l of $("hashes").value.split(/\r?\n/)){const x=l.trim().match(/^([a-fA-F0-9]{64})\s*(.*)$/);if(x)m.set(x[1].toLowerCase(),x[2].trim())}return m}
+function linha(r){
+  const s=sevMax(r.det),tr=document.createElement("tr");
+  tr.className=(s>=2?"r-crit":s===1?"r-med":"r-ok")+(r.filho?" filho":"");
+  const c1=document.createElement("td"),c2=document.createElement("td"),c3=document.createElement("td"),t=document.createElement("span");
+  t.className="tag "+(s>=2?"t-crit":s===1?"t-med":"t-ok");t.textContent=s>=2?"AMEAÇA":s===1?"ATENÇÃO":"SEM ALERTA";c1.appendChild(t);
+  c2.textContent=r.caminho;const sm=document.createElement("small");sm.textContent="  "+fmt(r.tam);c2.appendChild(sm);
+  if(!r.det.length)c3.textContent="Nenhum alerta";
+  else for(const d of r.det){const dv=document.createElement("div"),b=document.createElement("span");b.className="dn";b.textContent=d.n;dv.appendChild(b);dv.appendChild(document.createTextNode(" — "+d.d));c3.appendChild(dv)}
+  tr.append(c1,c2,c3);return tr;
 }
 async function varrer(lista){
-  lista=[...lista];
-  if(!lista.length)return;
-  const ruins=lerHashes(),tb=$("tab").querySelector("tbody");
-  tb.innerHTML="";$("tab").hidden=true;$("res").style.display="none";
+  lista=[...lista];if(!lista.length)return;
+  const ruins=lerHashes(),grupos=[],fila=lista.slice(),tb=$("tab").querySelector("tbody");
+  let feitos=0,amea=0,aten=0;
+  tb.innerHTML="";$("tab").hidden=true;$("filt").hidden=true;$("res").style.display="none";
   $("saida").hidden=false;$("prog").max=lista.length;$("prog").value=0;
-  let feitos=0,alertas=0;
-  const fila=lista.slice();
   async function worker(){
     while(fila.length){
-      const f=fila.shift();
-      $("st").firstChild.textContent=f.webkitRelativePath||f.name;
-      let achados=[];
-      try{achados=await analisar(f,ruins)}catch(e){}
-      for(const [g,m] of achados){
-        alertas++;
-        const tr=document.createElement("tr");
-        const c1=document.createElement("td"),c2=document.createElement("td"),c3=document.createElement("td");
-        const t=document.createElement("span");t.className="tag "+g;t.textContent=g;c1.appendChild(t);
-        c2.textContent=f.webkitRelativePath||f.name;c3.textContent=m;
-        tr.append(c1,c2,c3);tb.appendChild(tr);$("tab").hidden=false;
-      }
+      const f=fila.shift(),cam=f.webkitRelativePath||f._rel||f.name;
+      $("st").firstChild.textContent="Analisando: "+cam;
+      let r;try{r=await analisar(f,ruins)}catch(e){r={det:[{sev:"MÉDIA",n:"Não lido",d:"não foi possível ler este arquivo"}],filhos:[]}}
+      const rows=[{caminho:cam,tam:f.size,det:r.det,filho:false}];
+      for(const c of r.filhos)rows.push({caminho:cam+" ▸ "+c.nome,tam:c.tam,det:c.det,filho:true});
+      grupos.push(rows);
+      const s=sevMax(r.det);if(s>=2)amea++;else if(s===1)aten++;
       $("prog").value=++feitos;
     }
   }
   await Promise.all([worker(),worker(),worker(),worker()]);
+  const gs=g=>Math.max(...g.map(r=>sevMax(r.det)));
+  grupos.sort((a,b)=>gs(b)-gs(a)||a[0].caminho.localeCompare(b[0].caminho));
+  const fr=document.createDocumentFragment();
+  for(const g of grupos)for(const r of g)fr.appendChild(linha(r));
+  tb.appendChild(fr);$("tab").hidden=false;$("filt").hidden=false;
   $("st").firstChild.textContent="Concluído.";
   const r=$("res");r.style.display="block";
-  r.style.background=alertas?"var(--med)":"var(--ok)";
-  r.textContent=alertas?`${feitos} arquivos analisados, ${alertas} alerta(s). Revise os itens abaixo.`:`${feitos} arquivos analisados, nenhum alerta.`;
+  r.style.background=amea?"var(--crit)":aten?"var(--med)":"var(--blu)";
+  r.textContent=`${feitos} arquivo(s) analisado(s): ${amea} ameaça(s), ${aten} para atenção, ${feitos-amea-aten} sem alerta.`;
 }
+$("so").onchange=e=>$("tab").classList.toggle("so",e.target.checked);
 $("bArq").onclick=e=>{e.stopPropagation();$("fArq").click()};
 $("bPasta").onclick=e=>{e.stopPropagation();$("fPasta").click()};
 $("fArq").onchange=e=>varrer(e.target.files);
@@ -143,7 +268,7 @@ d.addEventListener("drop",async e=>{
   const itens=[...e.dataTransfer.items].map(i=>i.webkitGetAsEntry&&i.webkitGetAsEntry()).filter(Boolean);
   const arquivos=[];
   async function ler(en){
-    if(en.isFile){await new Promise(r=>en.file(f=>{arquivos.push(f);r()},r))}
+    if(en.isFile){await new Promise(r=>en.file(f=>{f._rel=en.fullPath.replace(/^\//,"");arquivos.push(f);r()},r))}
     else if(en.isDirectory){
       const rd=en.createReader();let lote;
       do{lote=await new Promise(r=>rd.readEntries(r,()=>r([])));for(const x of lote)await ler(x)}while(lote.length);
